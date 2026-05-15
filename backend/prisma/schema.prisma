@@ -1,0 +1,483 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  ADMINISTRADOR
+  PACIENTE
+  REFERENCIA
+}
+
+enum EstadoUsuario {
+  ACTIVO
+  INACTIVO
+  BLOQUEADO
+}
+
+enum TipoDocumento {
+  DNI
+  CE
+  PASAPORTE
+  CIP
+}
+
+enum TipoReferencia {
+  CONSULTORIO
+  POSTA
+  POLICLINICO
+  MEDICO
+  OTRO
+}
+
+enum TipoConvenio {
+  EMPRESA
+  SEGURO
+  CLINICA
+}
+
+enum EstadoOrden {
+  PENDIENTE_MUESTRA
+  MUESTRA_TOMADA
+  ENVIADA
+  EN_PROCESO
+  COMPLETADA
+  LIBERADA
+  ANULADA
+}
+
+enum PrioridadOrden {
+  RUTINA
+  URGENTE
+}
+
+enum TipoEntrega {
+  PACIENTE
+  REFERENCIA
+  AMBOS
+}
+
+enum TipoMuestra {
+  SANGRE_TOTAL
+  SUERO
+  PLASMA
+  ORINA
+  HECES
+  CULTIVO
+}
+
+enum CondicionMuestra {
+  OPTIMA
+  HEMOLIZADA
+  INSUFICIENTE
+  MAL_ETIQUETADA
+}
+
+enum DestinoMuestra {
+  IN_HOUSE
+  EXTERNO
+}
+
+enum EstadoDetalleAtencion {
+  PENDIENTE
+  EN_PROCESO
+  RESULTADO_INGRESADO
+  VALIDADO
+}
+
+model Sede {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre       String
+  direccion    String
+  ruc          String?
+  telefono     String?
+  es_principal Boolean   @default(false)
+  estado       String    @default("ACTIVA")
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @updatedAt @db.Timestamptz
+  deleted_at   DateTime? @db.Timestamptz
+
+  usuarios    Usuario[]
+  atenciones  Atencion[]
+  inventarios Inventario[]
+  citas       Cita[]
+
+  @@map("sedes")
+}
+
+model Usuario {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre          String
+  login           String        @unique
+  email           String?
+  hash_password   String
+  rol             Rol
+  id_sede         String        @db.Uuid
+  id_paciente     String?       @db.Uuid
+  id_referencia   String?       @db.Uuid
+  mfa_secret      String?
+  mfa_habilitado  Boolean       @default(false)
+  estado          EstadoUsuario @default(ACTIVO)
+  ultimo_acceso   DateTime?     @db.Timestamptz
+  created_at      DateTime      @default(now()) @db.Timestamptz
+  updated_at      DateTime      @updatedAt @db.Timestamptz
+  deleted_at      DateTime?     @db.Timestamptz
+
+  sede            Sede          @relation(fields: [id_sede], references: [id], onDelete: Restrict)
+  paciente        Paciente?     @relation(fields: [id_paciente], references: [id], onDelete: Restrict)
+  referencia      Referencia?   @relation(fields: [id_referencia], references: [id], onDelete: Restrict)
+
+  permisos        PermisoUsuario[]
+  muestras_toma   Muestra[]       @relation("UsuarioTomaMuestra")
+  auditoria       Auditoria[]
+  log_custodia    LogCustodia[]
+
+  @@map("usuarios")
+}
+
+model PermisoUsuario {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_usuario String   @db.Uuid
+  permiso    String
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  usuario    Usuario  @relation(fields: [id_usuario], references: [id], onDelete: Cascade)
+
+  @@unique([id_usuario, permiso])
+  @@map("permisos_usuario")
+}
+
+model Paciente {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo_doc         TipoDocumento
+  nro_doc          String
+  nombres          String
+  apellidos        String
+  fecha_nacimiento DateTime      @db.Date
+  sexo             String
+  email            String?
+  telefono         String?
+  direccion        String?
+  seguro           String?
+  created_at       DateTime      @default(now()) @db.Timestamptz
+  updated_at       DateTime      @updatedAt @db.Timestamptz
+  deleted_at       DateTime?     @db.Timestamptz
+
+  usuarios         Usuario[]
+  atenciones       Atencion[]
+  citas            Cita[]
+
+  @@unique([tipo_doc, nro_doc])
+  @@map("pacientes")
+}
+
+model Referencia {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo                TipoReferencia
+  nombre              String
+  ruc                 String?
+  direccion           String?
+  telefono            String?
+  email               String?
+  id_convenio         String?        @db.Uuid
+  entrega_por_defecto TipoEntrega    @default(AMBOS)
+  estado              String         @default("ACTIVA")
+  created_at          DateTime       @default(now()) @db.Timestamptz
+  updated_at          DateTime       @updatedAt @db.Timestamptz
+  deleted_at          DateTime?      @db.Timestamptz
+
+  convenio            Convenio?      @relation(fields: [id_convenio], references: [id], onDelete: Restrict)
+  usuarios            Usuario[]
+  medicos             MedicoReferidor[]
+  atenciones          Atencion[]
+
+  @@map("referencias")
+}
+
+model MedicoReferidor {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombres       String
+  apellidos     String
+  cmp           String      @unique
+  id_referencia String?     @db.Uuid
+  telefono      String?
+  email         String?
+  estado        String      @default("ACTIVO")
+  created_at    DateTime    @default(now()) @db.Timestamptz
+  updated_at    DateTime    @updatedAt @db.Timestamptz
+  deleted_at    DateTime?   @db.Timestamptz
+
+  referencia    Referencia? @relation(fields: [id_referencia], references: [id], onDelete: Restrict)
+  atenciones    Atencion[]
+
+  @@map("medicos_referidores")
+}
+
+model Convenio {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre               String
+  ruc                  String?
+  tipo                 TipoConvenio
+  descuento_porcentaje Decimal     @db.Decimal(5, 2)
+  contacto             String?
+  email_facturacion    String?
+  estado               String      @default("ACTIVO")
+  created_at           DateTime    @default(now()) @db.Timestamptz
+  updated_at           DateTime    @updatedAt @db.Timestamptz
+  deleted_at           DateTime?   @db.Timestamptz
+
+  referencias          Referencia[]
+  tarifas              Tarifa[]
+  atenciones           Atencion[]
+
+  @@map("convenios")
+}
+
+model Prueba {
+  id                      String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo                  String      @unique
+  codigo_loinc            String?
+  descripcion             String
+  tipo_muestra            TipoMuestra
+  area                    String
+  tiempo_entrega_hrs      Int
+  requiere_consentimiento Boolean     @default(false)
+  estado                  String      @default("ACTIVA")
+  created_at              DateTime    @default(now()) @db.Timestamptz
+  updated_at              DateTime    @updatedAt @db.Timestamptz
+  deleted_at              DateTime?   @db.Timestamptz
+
+  campos                  CampoPrueba[]
+  tarifas                 Tarifa[]
+  detalles_paquete        DetallePaquete[]
+  detalles_atencion       DetalleAtencion[]
+
+  @@map("pruebas")
+}
+
+model CampoPrueba {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_prueba     String    @db.Uuid
+  nombre_campo  String
+  unidad        String?
+  tipo_dato     String
+  orden         Int       @default(0)
+  rango_ref_min Decimal?
+  rango_ref_max Decimal?
+  aplica_sexo   String?
+  edad_min      Int?
+  edad_max      Int?
+
+  prueba        Prueba    @relation(fields: [id_prueba], references: [id], onDelete: Cascade)
+  resultados    Resultado[]
+
+  @@map("campos_prueba")
+}
+
+model Tarifa {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_prueba            String    @db.Uuid
+  tipo_tarifa          String    // PARTICULAR, CONVENIO
+  id_convenio          String?   @db.Uuid
+  precio               Decimal   @db.Decimal(10, 2)
+  fecha_vigencia_desde DateTime  @db.Date
+  fecha_vigencia_hasta DateTime? @db.Date
+  id_usuario_creo      String    @db.Uuid
+  created_at           DateTime  @default(now()) @db.Timestamptz
+
+  prueba               Prueba    @relation(fields: [id_prueba], references: [id], onDelete: Cascade)
+  convenio             Convenio? @relation(fields: [id_convenio], references: [id], onDelete: Restrict)
+
+  @@map("tarifas")
+}
+
+model Paquete {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre       String
+  descripcion  String?
+  precio_total Decimal   @db.Decimal(10, 2)
+  estado       String    @default("ACTIVO")
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @updatedAt @db.Timestamptz
+  deleted_at   DateTime? @db.Timestamptz
+
+  detalles     DetallePaquete[]
+
+  @@map("paquetes")
+}
+
+model DetallePaquete {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_paquete String @db.Uuid
+  id_prueba  String @db.Uuid
+
+  paquete    Paquete @relation(fields: [id_paquete], references: [id], onDelete: Cascade)
+  prueba     Prueba  @relation(fields: [id_prueba], references: [id], onDelete: Restrict)
+
+  @@unique([id_paquete, id_prueba])
+  @@map("detalle_paquete")
+}
+
+model Atencion {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo              String         @unique
+  id_paciente         String         @db.Uuid
+  id_sede             String         @db.Uuid
+  id_usuario_registro String         @db.Uuid
+  id_medico_referidor String?        @db.Uuid
+  id_referencia       String?        @db.Uuid
+  id_convenio         String?        @db.Uuid
+  fecha               DateTime       @default(now()) @db.Timestamptz
+  tipo_atencion       String         // AMBULATORIO, OCUPACIONAL...
+  entrega             TipoEntrega    @default(AMBOS)
+  estado              EstadoOrden    @default(PENDIENTE_MUESTRA)
+  prioridad           PrioridadOrden @default(RUTINA)
+  total               Decimal        @db.Decimal(10, 2)
+  created_at          DateTime       @default(now()) @db.Timestamptz
+  updated_at          DateTime       @updatedAt @db.Timestamptz
+  deleted_at          DateTime?      @db.Timestamptz
+
+  paciente            Paciente          @relation(fields: [id_paciente], references: [id], onDelete: Restrict)
+  sede                Sede              @relation(fields: [id_sede], references: [id], onDelete: Restrict)
+  medico_referidor    MedicoReferidor?  @relation(fields: [id_medico_referidor], references: [id], onDelete: Restrict)
+  referencia          Referencia?       @relation(fields: [id_referencia], references: [id], onDelete: Restrict)
+  convenio            Convenio?         @relation(fields: [id_convenio], references: [id], onDelete: Restrict)
+
+  detalles            DetalleAtencion[]
+  muestras            Muestra[]
+
+  @@map("atenciones")
+}
+
+model DetalleAtencion {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_atencion     String                @db.Uuid
+  id_prueba       String                @db.Uuid
+  id_tarifa       String                @db.Uuid
+  precio_aplicado Decimal               @db.Decimal(10, 2)
+  estado          EstadoDetalleAtencion @default(PENDIENTE)
+  created_at      DateTime              @default(now()) @db.Timestamptz
+  updated_at      DateTime              @updatedAt @db.Timestamptz
+  deleted_at      DateTime?             @db.Timestamptz
+
+  atencion        Atencion              @relation(fields: [id_atencion], references: [id], onDelete: Cascade)
+  prueba          Prueba                @relation(fields: [id_prueba], references: [id], onDelete: Restrict)
+  resultados      Resultado[]
+
+  @@map("detalle_atencion")
+}
+
+model Muestra {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_atencion     String           @db.Uuid
+  tipo_muestra    TipoMuestra
+  codigo_barra    String           @unique
+  condicion       CondicionMuestra @default(OPTIMA)
+  destino         DestinoMuestra   @default(IN_HOUSE)
+  id_lab_externo  String?          @db.Uuid
+  fecha_toma      DateTime?        @db.Timestamptz
+  fecha_envio     DateTime?        @db.Timestamptz
+  id_usuario_toma String?          @db.Uuid
+  motivo_rechazo  String?
+  created_at      DateTime         @default(now()) @db.Timestamptz
+  updated_at      DateTime         @updatedAt @db.Timestamptz
+  deleted_at      DateTime?        @db.Timestamptz
+
+  atencion        Atencion         @relation(fields: [id_atencion], references: [id], onDelete: Cascade)
+  usuario_toma    Usuario?         @relation("UsuarioTomaMuestra", fields: [id_usuario_toma], references: [id], onDelete: Restrict)
+  log_custodia    LogCustodia[]
+
+  @@map("muestras")
+}
+
+model LogCustodia {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_muestra   String   @db.Uuid
+  evento       String   // TOMADA, RECIBIDA, ENVIADA, PROCESADA, RECHAZADA
+  id_usuario   String   @db.Uuid
+  timestamp    DateTime @default(now()) @db.Timestamptz
+  observacion  String?
+
+  muestra      Muestra  @relation(fields: [id_muestra], references: [id], onDelete: Cascade)
+  usuario      Usuario  @relation(fields: [id_usuario], references: [id], onDelete: Restrict)
+
+  @@map("log_custodia")
+}
+
+model Resultado {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_detalle_atencion  String    @db.Uuid
+  id_campo_prueba      String    @db.Uuid
+  valor                String
+  unidad               String?
+  rango_ref_min        Decimal?
+  rango_ref_max        Decimal?
+  flag                 String?   // N, L, H, C
+  fecha_ingreso        DateTime  @default(now()) @db.Timestamptz
+  id_usuario_tecnico   String?   @db.Uuid
+  fecha_validacion     DateTime? @db.Timestamptz
+  id_usuario_validador String?   @db.Uuid
+  bloqueado            Boolean   @default(false)
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+
+  detalle_atencion     DetalleAtencion @relation(fields: [id_detalle_atencion], references: [id], onDelete: Cascade)
+  campo_prueba         CampoPrueba     @relation(fields: [id_campo_prueba], references: [id], onDelete: Restrict)
+
+  @@map("resultados")
+}
+
+model Cita {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_paciente  String    @db.Uuid
+  id_sede      String    @db.Uuid
+  fecha_hora   DateTime  @db.Timestamptz
+  estado       String    @default("AGENDADA")
+  observacion  String?
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @updatedAt @db.Timestamptz
+  deleted_at   DateTime? @db.Timestamptz
+
+  paciente     Paciente  @relation(fields: [id_paciente], references: [id], onDelete: Cascade)
+  sede         Sede      @relation(fields: [id_sede], references: [id], onDelete: Restrict)
+
+  @@map("citas")
+}
+
+model Inventario {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reactivo          String
+  proveedor         String?
+  lote              String?
+  stock_actual      Decimal   @db.Decimal(10, 2)
+  stock_minimo      Decimal   @db.Decimal(10, 2)
+  unidad            String
+  fecha_vencimiento DateTime? @db.Date
+  id_sede           String    @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+  deleted_at        DateTime? @db.Timestamptz
+
+  sede              Sede      @relation(fields: [id_sede], references: [id], onDelete: Restrict)
+
+  @@map("inventario")
+}
+
+model Auditoria {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  timestamp    DateTime @default(now()) @db.Timestamptz
+  id_usuario   String?  @db.Uuid
+  accion       String   // CREAR, MODIFICAR, ELIMINAR, LIBERAR, LOGIN
+  entidad      String
+  id_entidad   String
+  detalle_json Json?
+  ip_origen    String?
+
+  usuario      Usuario? @relation(fields: [id_usuario], references: [id], onDelete: SetNull)
+
+  @@map("auditoria")
+}

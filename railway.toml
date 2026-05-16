@@ -1,5 +1,5 @@
 [build]
-buildCommand = "npm install && npm run build --workspace=packages/contracts && rm -rf node_modules/@lis/contracts && mkdir -p node_modules/@lis && cp -r packages/contracts node_modules/@lis/contracts && npm run build --workspace=backend && cd backend && npx prisma generate"
+buildCommand = "rm -rf packages/contracts/dist node_modules/@lis/contracts && find . -name '*.tsbuildinfo' -not -path './node_modules/*' -delete 2>/dev/null; npm install && npm run build --workspace=packages/contracts && echo '=== contracts dist contents ===' && ls -la packages/contracts/dist && mkdir -p node_modules/@lis && cp -r packages/contracts node_modules/@lis/contracts && echo '=== node_modules/@lis/contracts/dist contents ===' && ls -la node_modules/@lis/contracts/dist && npm run build --workspace=backend && echo '=== backend dist contents ===' && ls -la backend/dist && cd backend && npx prisma generate"
 
 [deploy]
 startCommand = "cd backend && npx prisma db push --skip-generate && npm run start:prod"

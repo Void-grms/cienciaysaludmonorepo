@@ -3,6 +3,8 @@
   "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "prisma"],
   "compilerOptions": {
     "rootDir": "./src",
-    "paths": {}
+    "paths": {},
+    "incremental": false,
+    "composite": false
   }
 }

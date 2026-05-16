@@ -1,5 +1,5 @@
 [build]
-buildCommand = "npm install && npm run build --workspace=packages/contracts && npm run build --workspace=backend && cd backend && npx prisma generate"
+buildCommand = "npm install && npm run build --workspace=packages/contracts && rm -rf node_modules/@lis/contracts && mkdir -p node_modules/@lis && cp -r packages/contracts node_modules/@lis/contracts && npm run build --workspace=backend && cd backend && npx prisma generate"
 
 [deploy]
 startCommand = "cd backend && npx prisma db push --skip-generate && npm run start:prod"

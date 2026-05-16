@@ -40,5 +40,5 @@ RUN test -f backend/dist/main.js \
 WORKDIR /app/backend
 RUN npx prisma generate
 
-# Default runtime command: apply schema then start
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main"]
+# Default runtime command: preflight env check + prisma push + node dist/main
+CMD ["node", "start.mjs"]

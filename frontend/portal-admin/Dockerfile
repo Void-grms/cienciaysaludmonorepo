@@ -9,7 +9,18 @@ RUN rm -rf node_modules frontend/portal-admin/dist \
 
 RUN npm install
 
-RUN npm run build --workspace=frontend/portal-admin \
+# Vite envs are baked at build time. Railway passes service env vars as
+# build args when declared here.
+ARG VITE_API_URL
+ARG VITE_ENV
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_ENV=$VITE_ENV
+
+RUN echo "=== vite build envs ===" \
+    && echo "VITE_API_URL=$VITE_API_URL" \
+    && echo "VITE_ENV=$VITE_ENV" \
+    && if [ -z "$VITE_API_URL" ]; then echo "!! VITE_API_URL is empty at build time"; exit 1; fi \
+    && npm run build --workspace=frontend/portal-admin \
     && test -f frontend/portal-admin/dist/index.html \
     || (echo "!!! portal-admin build did NOT produce dist/index.html"; find frontend/portal-admin/dist -type f 2>/dev/null; exit 1)
 

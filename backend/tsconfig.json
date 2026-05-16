@@ -20,7 +20,7 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@lis/contracts": ["../packages/contracts/dist"]
+      "@lis/contracts": ["../packages/contracts/src"]
     }
   }
 }
